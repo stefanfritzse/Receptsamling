@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable, List, Optional
 
 from google.api_core import exceptions as gcloud_exceptions
@@ -12,6 +12,9 @@ from werkzeug.utils import secure_filename
 
 from .models import Recipe
 from .storage import RecipeRepository
+
+
+SIGNED_URL_EXPIRATION = timedelta(days=7)
 
 
 def _parse_ingredients(ingredients_text: str) -> List[str]:
@@ -91,10 +94,7 @@ class FirestoreRecipeStorage(RecipeRepository):
 
             image.stream.seek(0)
             blob.upload_from_file(image.stream, content_type=image.mimetype)
-
-            # Make the file publicly readable so it can be displayed on the website.
-            blob.make_public()
-            image_url = blob.public_url
+            image_url = self._generate_signed_url(blob)
 
         doc = {
             "title": title,
@@ -174,8 +174,7 @@ class FirestoreRecipeStorage(RecipeRepository):
 
             image.stream.seek(0)
             blob.upload_from_file(image.stream, content_type=image.mimetype)
-            blob.make_public()
-            new_image_url = blob.public_url
+            new_image_url = self._generate_signed_url(blob)
 
         update_doc = {
             "title": title,
@@ -207,13 +206,20 @@ class FirestoreRecipeStorage(RecipeRepository):
         else:
             timestamp = None
 
+        image_blob_name = data.get("image_blob_name")
+        image_url = data.get("image_url")
+
+        if image_blob_name and self._bucket:
+            blob = self._bucket.blob(image_blob_name)
+            image_url = self._generate_signed_url(blob)
+
         return Recipe(
             id=doc_id,
             title=data.get("title", ""),
             description=data.get("description", ""),
             ingredients=parsed_ingredients,
             instructions=data.get("instructions", ""),
-            image_url=data.get("image_url"),
+            image_url=image_url,
             created_at=timestamp,
         )
 
@@ -221,6 +227,11 @@ class FirestoreRecipeStorage(RecipeRepository):
         safe = secure_filename(filename)
         unique = uuid.uuid4().hex
         return f"recipes/{unique}_{safe}"
+
+    def _generate_signed_url(self, blob: storage.Blob) -> str:
+        return blob.generate_signed_url(
+            version="v4", method="GET", expiration=SIGNED_URL_EXPIRATION
+        )
 
 
 __all__ = ["FirestoreRecipeStorage"]
