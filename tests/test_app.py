@@ -61,6 +61,7 @@ class InMemoryRecipeStorage:
         ingredients_text: str,
         instructions: str,
         image,
+        remove_image: bool,
     ) -> Recipe:
         recipe = self.get_recipe(recipe_id)
         ingredients = [line.strip() for line in ingredients_text.splitlines() if line.strip()]
@@ -68,6 +69,8 @@ class InMemoryRecipeStorage:
         recipe.description = description
         recipe.ingredients = ingredients
         recipe.instructions = instructions
+        if remove_image:
+            recipe.image_url = None
         return recipe
 
     def delete_recipe(self, recipe_id: str) -> None:
@@ -198,6 +201,36 @@ def test_can_update_recipe_via_form():
     assert updated.ingredients == ["carrots", "potatoes"]
     assert updated.instructions == "Add spices."
     assert "Recipe &#39;Spicy Veggie Curry&#39; updated." in response.get_data(as_text=True)
+
+
+def test_can_remove_recipe_image():
+    client, storage = create_test_client()
+    recipe = storage.add_recipe(
+        title="Fruit Tart",
+        description="A sweet treat",
+        ingredients_text="berries",
+        instructions="Assemble and chill.",
+        image=None,
+    )
+
+    recipe.image_url = "https://example.com/tart.jpg"
+
+    response = client.post(
+        f"/recipes/{recipe.id}",
+        data={
+            "title": "Fruit Tart",
+            "description": "A sweet treat",
+            "ingredients": "berries",
+            "instructions": "Assemble and chill.",
+            "remove_image": "1",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    updated = storage.get_recipe(recipe.id)
+    assert updated.image_url is None
+    assert "Recipe &#39;Fruit Tart&#39; updated." in response.get_data(as_text=True)
 
 
 def test_cannot_update_recipe_without_title():

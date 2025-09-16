@@ -126,6 +126,10 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
         ingredients_text = request.form.get("ingredients", "").strip()
         instructions = request.form.get("instructions", "").strip()
         image = request.files.get("image")
+        remove_image = request.form.get("remove_image") == "1"
+
+        if image and image.filename:
+            remove_image = False
 
         if not title:
             flash("Please provide a recipe title.", "error")
@@ -143,6 +147,7 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
                 ingredients_text=ingredients_text,
                 instructions=instructions,
                 image=image,
+                remove_image=remove_image,
             )
         except KeyError:
             flash("Recipe not found.", "error")
