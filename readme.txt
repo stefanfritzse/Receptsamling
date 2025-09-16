@@ -1,0 +1,1 @@
+this project aims to create a recepie management system hosted on Google Cloud Platform. It should be run on a VM and accessible via external IP. The logic should be implemented using Python.
