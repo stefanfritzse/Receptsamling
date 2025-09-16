@@ -40,7 +40,22 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
     @app.get("/")
     def index() -> str:
         recipes = list(app.config["RECIPE_STORAGE"].list_recipes())
-        return render_template("index.html", recipes=recipes, title="Recipe Library")
+        selected_id = request.args.get("selected")
+        selected_recipe: Recipe | None = None
+
+        if recipes:
+            selected_recipe = next((recipe for recipe in recipes if recipe.id == selected_id), None)
+            if selected_recipe is None:
+                selected_recipe = recipes[0]
+            selected_id = selected_recipe.id
+
+        return render_template(
+            "index.html",
+            recipes=recipes,
+            selected_recipe=selected_recipe,
+            selected_id=selected_id,
+            title="Recipe Library",
+        )
 
     @app.post("/recipes")
     def create_recipe() -> str:
@@ -61,7 +76,7 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
             return redirect(url_for("index"))
 
         try:
-            storage_backend.add_recipe(
+            new_recipe = storage_backend.add_recipe(
                 title=title,
                 description=description,
                 ingredients_text=ingredients_text,
@@ -73,7 +88,14 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
         else:
             flash(f"Recipe '{title}' saved.", "success")
 
+            if new_recipe and new_recipe.id:  # pragma: no branch - defensive for typing
+                return redirect(url_for("index", selected=new_recipe.id))
+
         return redirect(url_for("index"))
+
+    @app.get("/recipes/new")
+    def new_recipe() -> str:
+        return render_template("add_recipe.html", title="Add recipe")
 
     @app.get("/recipes/<recipe_id>/edit")
     def edit_recipe(recipe_id: str) -> str:
@@ -130,7 +152,7 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
             return redirect(url_for("edit_recipe", recipe_id=recipe_id))
 
         flash(f"Recipe '{updated_recipe.title}' updated.", "success")
-        return redirect(url_for("index"))
+        return redirect(url_for("index", selected=updated_recipe.id))
 
     @app.post("/recipes/<recipe_id>/delete")
     def delete_recipe(recipe_id: str) -> str:

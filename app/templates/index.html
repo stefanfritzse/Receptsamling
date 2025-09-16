@@ -1,83 +1,76 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="form-section">
-  <h2>Add a new recipe</h2>
-  <form action="{{ url_for('create_recipe') }}" method="post" enctype="multipart/form-data">
-    <div class="form-grid">
-      <label>
-        <span>Recipe title *</span>
-        <input type="text" name="title" placeholder="Grandma's apple pie" required />
-      </label>
-      <label>
-        <span>Short description</span>
-        <input type="text" name="description" placeholder="Why this recipe is special" />
-      </label>
-      <label class="full-width">
-        <span>Ingredients (one per line)</span>
-        <textarea
-          name="ingredients"
-          rows="4"
-          placeholder="2 cups flour&#10;1 tsp cinnamon"
-        ></textarea>
-      </label>
-      <label class="full-width">
-        <span>Instructions</span>
-        <textarea
-          name="instructions"
-          rows="6"
-          placeholder="Describe how to make the recipe"
-        ></textarea>
-      </label>
-      <label>
-        <span>Optional image</span>
-        <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp" />
-      </label>
+<div class="recipes-layout">
+  <section class="recipe-list-panel">
+    <div class="panel-header">
+      <h2>Saved recipes</h2>
+      <p class="panel-subtitle">Select a recipe to see its full details.</p>
     </div>
-    <button type="submit" class="primary">Save recipe</button>
-  </form>
-</section>
+    {% if recipes %}
+    <ul class="recipe-list">
+      {% for recipe in recipes %}
+      <li class="recipe-list-item{% if recipe.id == selected_id %} active{% endif %}">
+        <a href="{{ url_for('index', selected=recipe.id) }}" class="recipe-list-link">
+          <span class="recipe-list-title">{{ recipe.title }}</span>
+          {% if recipe.description %}
+          <span class="recipe-list-description">{{ recipe.description }}</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No recipes saved yet. Add one to get started.</p>
+    {% endif %}
+  </section>
+  <section class="recipe-detail-panel">
+    {% if selected_recipe %}
+    {% if selected_recipe.image_url %}
+    <img
+      src="{{ selected_recipe.image_url }}"
+      alt="{{ selected_recipe.title }}"
+      class="recipe-detail-image"
+    />
+    {% endif %}
+    <h2 class="recipe-detail-title">{{ selected_recipe.title }}</h2>
+    {% if selected_recipe.description %}
+    <p class="recipe-detail-description">{{ selected_recipe.description }}</p>
+    {% endif %}
+    {% if selected_recipe.ingredients %}
+    <h3>Ingredients</h3>
+    <ul class="recipe-detail-ingredients">
+      {% for ingredient in selected_recipe.ingredients %}
+      <li>{{ ingredient }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if selected_recipe.instructions %}
+    <h3>Instructions</h3>
+    <p class="recipe-detail-instructions">{{ selected_recipe.instructions }}</p>
+    {% endif %}
+    {% elif recipes %}
+    <p class="recipe-detail-placeholder">Select a recipe from the list to view its details.</p>
+    {% else %}
+    <p class="recipe-detail-placeholder">Add your first recipe to see it here.</p>
+    {% endif %}
+  </section>
+</div>
 
-<section class="recipes-section">
-  <h2>Saved recipes</h2>
-  {% if recipes %}
-  <div class="recipes-grid">
-    {% for recipe in recipes %}
-    <article class="recipe-card">
-      {% if recipe.image_url %}
-      <img src="{{ recipe.image_url }}" alt="{{ recipe.title }}" />
-      {% endif %}
-      <div class="recipe-content">
-        <h3>{{ recipe.title }}</h3>
-        {% if recipe.description %}
-        <p class="description">{{ recipe.description }}</p>
-        {% endif %}
-        {% if recipe.ingredients %}
-        <h4>Ingredients</h4>
-        <ul>
-          {% for ingredient in recipe.ingredients %}
-          <li>{{ ingredient }}</li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-        {% if recipe.instructions %}
-        <h4>Instructions</h4>
-        <p class="instructions">{{ recipe.instructions }}</p>
-        {% endif %}
-        <div class="recipe-actions">
-          <form action="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" method="get">
-            <button type="submit" class="secondary">Edit</button>
-          </form>
-          <form action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" method="post">
-            <button type="submit" class="danger">Delete</button>
-          </form>
-        </div>
-      </div>
-    </article>
-    {% endfor %}
-  </div>
+<div class="recipe-actions-bar">
+  <form action="{{ url_for('new_recipe') }}" method="get">
+    <button type="submit" class="primary">Add recipe</button>
+  </form>
+  {% if selected_recipe %}
+  <form action="{{ url_for('edit_recipe', recipe_id=selected_recipe.id) }}" method="get">
+    <button type="submit" class="secondary">Edit selected</button>
+  </form>
+  <form action="{{ url_for('delete_recipe', recipe_id=selected_recipe.id) }}" method="post">
+    <button type="submit" class="danger">Delete selected</button>
+  </form>
   {% else %}
-  <p class="empty-state">No recipes saved yet. Start by adding one above.</p>
+  <button type="button" class="secondary" disabled>Edit selected</button>
+  <button type="button" class="danger" disabled>Delete selected</button>
   {% endif %}
-</section>
+</div>
 {% endblock %}
