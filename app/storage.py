@@ -36,8 +36,13 @@ class RecipeRepository(Protocol):
         ingredients_text: str,
         instructions: str,
         image: FileStorage | None,
+        remove_image: bool,
     ) -> Recipe:
-        """Update an existing recipe and return the new representation."""
+        """Update an existing recipe and return the new representation.
+
+        Implementations should remove any stored image when ``remove_image`` is
+        ``True`` and no replacement image is provided.
+        """
 
     def delete_recipe(self, recipe_id: str) -> None:
         """Remove a recipe and any associated assets."""

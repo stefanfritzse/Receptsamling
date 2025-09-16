@@ -72,6 +72,10 @@ main {
   margin-bottom: 1.5rem;
 }
 
+.form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
 label span {
   display: block;
   margin-bottom: 0.5rem;
@@ -88,6 +92,33 @@ input[type='file'] {
   font-size: 1rem;
   box-sizing: border-box;
   font-family: inherit;
+}
+
+.form-image-preview {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: rgba(148, 163, 184, 0.12);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-image-preview__label {
+  font-weight: 600;
+}
+
+.form-image-preview__image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.form-image-preview__remove {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
 }
 
 textarea {

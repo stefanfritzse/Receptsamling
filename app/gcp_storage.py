@@ -142,6 +142,7 @@ class FirestoreRecipeStorage(RecipeRepository):
         ingredients_text: str,
         instructions: str,
         image: FileStorage | None,
+        remove_image: bool = False,
     ) -> Recipe:
         doc_ref = self._collection.document(recipe_id)
         snapshot = doc_ref.get()
@@ -175,6 +176,15 @@ class FirestoreRecipeStorage(RecipeRepository):
             image.stream.seek(0)
             blob.upload_from_file(image.stream, content_type=image.mimetype)
             new_image_url = self._generate_signed_url(blob)
+        elif remove_image:
+            if current_blob_name and self._bucket:
+                blob = self._bucket.blob(current_blob_name)
+                try:
+                    blob.delete()
+                except gcloud_exceptions.NotFound:
+                    pass
+            new_blob_name = None
+            new_image_url = None
 
         update_doc = {
             "title": title,
