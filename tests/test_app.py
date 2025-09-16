@@ -24,6 +24,12 @@ class InMemoryRecipeStorage:
             reverse=True,
         )
 
+    def get_recipe(self, recipe_id: str) -> Recipe:
+        for recipe in self._recipes:
+            if recipe.id == recipe_id:
+                return recipe
+        raise KeyError(recipe_id)
+
     def add_recipe(
         self,
         *,
@@ -44,6 +50,24 @@ class InMemoryRecipeStorage:
             created_at=datetime.utcnow(),
         )
         self._recipes.append(recipe)
+        return recipe
+
+    def update_recipe(
+        self,
+        recipe_id: str,
+        *,
+        title: str,
+        description: str,
+        ingredients_text: str,
+        instructions: str,
+        image,
+    ) -> Recipe:
+        recipe = self.get_recipe(recipe_id)
+        ingredients = [line.strip() for line in ingredients_text.splitlines() if line.strip()]
+        recipe.title = title
+        recipe.description = description
+        recipe.ingredients = ingredients
+        recipe.instructions = instructions
         return recipe
 
     def delete_recipe(self, recipe_id: str) -> None:
@@ -125,3 +149,78 @@ def test_delete_recipe_removes_item():
     assert response.status_code == 200
     assert all(existing.id != recipe.id for existing in storage.list_recipes())
     assert b"Recipe deleted." in response.data
+
+
+def test_edit_recipe_page_prefills_current_values():
+    client, storage = create_test_client()
+    recipe = storage.add_recipe(
+        title="Pasta Salad",
+        description="Perfect for picnics",
+        ingredients_text="pasta\ntomatoes",
+        instructions="Mix together.",
+        image=None,
+    )
+
+    response = client.get(f"/recipes/{recipe.id}/edit")
+
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+    assert "value=\"Pasta Salad\"" in page
+    assert "Perfect for picnics" in page
+    assert "pasta\ntomatoes" in page
+
+
+def test_can_update_recipe_via_form():
+    client, storage = create_test_client()
+    recipe = storage.add_recipe(
+        title="Veggie Curry",
+        description="Mild and creamy",
+        ingredients_text="carrots",
+        instructions="Cook gently.",
+        image=None,
+    )
+
+    response = client.post(
+        f"/recipes/{recipe.id}",
+        data={
+            "title": "Spicy Veggie Curry",
+            "description": "Now with a kick",
+            "ingredients": "carrots\npotatoes",
+            "instructions": "Add spices.",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    updated = storage.get_recipe(recipe.id)
+    assert updated.title == "Spicy Veggie Curry"
+    assert updated.description == "Now with a kick"
+    assert updated.ingredients == ["carrots", "potatoes"]
+    assert updated.instructions == "Add spices."
+    assert "Recipe &#39;Spicy Veggie Curry&#39; updated." in response.get_data(as_text=True)
+
+
+def test_cannot_update_recipe_without_title():
+    client, storage = create_test_client()
+    recipe = storage.add_recipe(
+        title="Soup",
+        description="Warm and cozy",
+        ingredients_text="water",
+        instructions="Boil.",
+        image=None,
+    )
+
+    response = client.post(
+        f"/recipes/{recipe.id}",
+        data={
+            "title": "",
+            "description": "Still warm",
+            "ingredients": "water",
+            "instructions": "Boil longer.",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Please provide a recipe title." in response.data
+    assert storage.get_recipe(recipe.id).title == "Soup"

@@ -58,6 +58,16 @@ class FirestoreRecipeStorage(RecipeRepository):
             data = doc.to_dict() or {}
             yield self._doc_to_recipe(doc.id, data)
 
+    def get_recipe(self, recipe_id: str) -> Recipe:
+        doc_ref = self._collection.document(recipe_id)
+        snapshot = doc_ref.get()
+
+        if not snapshot.exists:
+            raise KeyError(f"Recipe '{recipe_id}' does not exist.")
+
+        data = snapshot.to_dict() or {}
+        return self._doc_to_recipe(snapshot.id, data)
+
     def add_recipe(
         self,
         *,
@@ -122,6 +132,65 @@ class FirestoreRecipeStorage(RecipeRepository):
                 pass
 
         doc_ref.delete()
+
+    def update_recipe(
+        self,
+        recipe_id: str,
+        *,
+        title: str,
+        description: str,
+        ingredients_text: str,
+        instructions: str,
+        image: FileStorage | None,
+    ) -> Recipe:
+        doc_ref = self._collection.document(recipe_id)
+        snapshot = doc_ref.get()
+
+        if not snapshot.exists:
+            raise KeyError(f"Recipe '{recipe_id}' does not exist.")
+
+        current_data = snapshot.to_dict() or {}
+        current_blob_name = current_data.get("image_blob_name")
+        current_image_url = current_data.get("image_url")
+
+        ingredients = _parse_ingredients(ingredients_text)
+
+        new_blob_name = current_blob_name
+        new_image_url = current_image_url
+
+        if image and image.filename:
+            if not self._bucket:
+                raise RuntimeError("A Cloud Storage bucket must be configured to upload images.")
+
+            if current_blob_name:
+                blob = self._bucket.blob(current_blob_name)
+                try:
+                    blob.delete()
+                except gcloud_exceptions.NotFound:
+                    pass
+
+            new_blob_name = self._build_blob_name(image.filename)
+            blob = self._bucket.blob(new_blob_name)
+
+            image.stream.seek(0)
+            blob.upload_from_file(image.stream, content_type=image.mimetype)
+            blob.make_public()
+            new_image_url = blob.public_url
+
+        update_doc = {
+            "title": title,
+            "description": description,
+            "ingredients": ingredients,
+            "instructions": instructions,
+            "image_blob_name": new_blob_name,
+            "image_url": new_image_url,
+        }
+
+        doc_ref.update(update_doc)
+
+        snapshot = doc_ref.get()
+        data = snapshot.to_dict() or {}
+        return self._doc_to_recipe(snapshot.id, data)
 
     def _doc_to_recipe(self, doc_id: str, data: dict) -> Recipe:
         ingredients = data.get("ingredients")

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="form-section">
+  <h2>Edit recipe</h2>
+  <form action="{{ url_for('update_recipe', recipe_id=recipe.id) }}" method="post" enctype="multipart/form-data">
+    <div class="form-grid">
+      <label>
+        <span>Recipe title *</span>
+        <input type="text" name="title" value="{{ recipe.title }}" required />
+      </label>
+      <label>
+        <span>Short description</span>
+        <input type="text" name="description" value="{{ recipe.description }}" />
+      </label>
+      <label class="full-width">
+        <span>Ingredients (one per line)</span>
+        <textarea name="ingredients" rows="4">{{ ingredients_text }}</textarea>
+      </label>
+      <label class="full-width">
+        <span>Instructions</span>
+        <textarea name="instructions" rows="6">{{ recipe.instructions }}</textarea>
+      </label>
+      <label>
+        <span>Optional new image</span>
+        <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp" />
+        <p class="field-hint">Leave empty to keep the current image.</p>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary">Update recipe</button>
+      <a href="{{ url_for('index') }}" class="button-link secondary">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

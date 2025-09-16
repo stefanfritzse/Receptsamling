@@ -97,22 +97,39 @@ textarea {
   min-height: 120px;
 }
 
-button {
+button,
+.button-link {
   cursor: pointer;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 999px;
   font-weight: 600;
   font-size: 1rem;
+  display: inline-block;
+  text-decoration: none;
 }
 
-button.primary {
+button.primary,
+.button-link.primary {
   background: var(--accent);
   color: white;
 }
 
-button.primary:hover {
+button.primary:hover,
+.button-link.primary:hover {
   background: var(--accent-dark);
+}
+
+button.secondary,
+.button-link.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+
+button.secondary:hover,
+.button-link.secondary:hover {
+  background: rgba(37, 99, 235, 0.08);
 }
 
 button.danger {
@@ -171,8 +188,27 @@ button.danger:hover {
   margin-top: 0.35rem;
 }
 
-.recipe-content form {
+.recipe-actions {
   margin-top: auto;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.recipe-actions form {
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.field-hint {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
 }
 
 .flash-container {
