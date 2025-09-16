@@ -75,6 +75,63 @@ def create_app(storage: Optional[RecipeRepository] = None) -> Flask:
 
         return redirect(url_for("index"))
 
+    @app.get("/recipes/<recipe_id>/edit")
+    def edit_recipe(recipe_id: str) -> str:
+        storage_backend: RecipeRepository = app.config["RECIPE_STORAGE"]
+
+        try:
+            recipe = storage_backend.get_recipe(recipe_id)
+        except KeyError:
+            flash("Recipe not found.", "error")
+            return redirect(url_for("index"))
+
+        ingredients_text = "\n".join(recipe.ingredients)
+        page_title = f"Edit {recipe.title}" if recipe.title else "Edit recipe"
+
+        return render_template(
+            "edit_recipe.html",
+            recipe=recipe,
+            ingredients_text=ingredients_text,
+            title=page_title,
+        )
+
+    @app.post("/recipes/<recipe_id>")
+    def update_recipe(recipe_id: str) -> str:
+        storage_backend: RecipeRepository = app.config["RECIPE_STORAGE"]
+
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        ingredients_text = request.form.get("ingredients", "").strip()
+        instructions = request.form.get("instructions", "").strip()
+        image = request.files.get("image")
+
+        if not title:
+            flash("Please provide a recipe title.", "error")
+            return redirect(url_for("edit_recipe", recipe_id=recipe_id))
+
+        if image and not _allowed_image(image.filename):
+            flash("Unsupported image format. Allowed formats: PNG, JPG, JPEG, GIF, WEBP.", "error")
+            return redirect(url_for("edit_recipe", recipe_id=recipe_id))
+
+        try:
+            updated_recipe = storage_backend.update_recipe(
+                recipe_id,
+                title=title,
+                description=description,
+                ingredients_text=ingredients_text,
+                instructions=instructions,
+                image=image,
+            )
+        except KeyError:
+            flash("Recipe not found.", "error")
+            return redirect(url_for("index"))
+        except Exception as exc:  # pragma: no cover - defensive programming
+            flash(f"Failed to update recipe: {exc}", "error")
+            return redirect(url_for("edit_recipe", recipe_id=recipe_id))
+
+        flash(f"Recipe '{updated_recipe.title}' updated.", "success")
+        return redirect(url_for("index"))
+
     @app.post("/recipes/<recipe_id>/delete")
     def delete_recipe(recipe_id: str) -> str:
         storage_backend: RecipeRepository = app.config["RECIPE_STORAGE"]
