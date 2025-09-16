@@ -38,8 +38,9 @@ GOOGLE_APPLICATION_CREDENTIALS  Path to a service account JSON key file with
 ```
 
 Firestore must be running in **Native mode**. Cloud Storage buckets must allow
-the application service account to upload objects and, optionally, invoke
-``make_public()`` if you want public images.
+the application service account to upload objects and expose images to end
+users through signed URLs or IAM-based viewer access instead of calling
+``make_public()``.
 
 Local development
 -----------------
