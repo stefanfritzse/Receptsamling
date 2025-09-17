@@ -123,13 +123,7 @@ class FirestoreRecipeStorage(RecipeRepository):
         data = snapshot.to_dict() or {}
         blob_name = data.get("image_blob_name")
 
-        if blob_name and self._bucket:
-            blob = self._bucket.blob(blob_name)
-            try:
-                blob.delete()
-            except gcloud_exceptions.NotFound:
-                # The blob may already have been removed manually; ignore.
-                pass
+        self._delete_blob_if_exists(blob_name)
 
         doc_ref.delete()
 
@@ -164,11 +158,7 @@ class FirestoreRecipeStorage(RecipeRepository):
                 raise RuntimeError("A Cloud Storage bucket must be configured to upload images.")
 
             if current_blob_name:
-                blob = self._bucket.blob(current_blob_name)
-                try:
-                    blob.delete()
-                except gcloud_exceptions.NotFound:
-                    pass
+                self._delete_blob_if_exists(current_blob_name)
 
             new_blob_name = self._build_blob_name(image.filename)
             blob = self._bucket.blob(new_blob_name)
@@ -177,12 +167,7 @@ class FirestoreRecipeStorage(RecipeRepository):
             blob.upload_from_file(image.stream, content_type=image.mimetype)
             new_image_url = self._generate_signed_url(blob)
         elif remove_image:
-            if current_blob_name and self._bucket:
-                blob = self._bucket.blob(current_blob_name)
-                try:
-                    blob.delete()
-                except gcloud_exceptions.NotFound:
-                    pass
+            self._delete_blob_if_exists(current_blob_name)
             new_blob_name = None
             new_image_url = None
 
@@ -237,6 +222,18 @@ class FirestoreRecipeStorage(RecipeRepository):
         safe = secure_filename(filename)
         unique = uuid.uuid4().hex
         return f"recipes/{unique}_{safe}"
+
+    def _delete_blob_if_exists(self, blob_name: str | None) -> None:
+        if not blob_name or not self._bucket:
+            return
+
+        blob = self._bucket.blob(blob_name)
+
+        try:
+            blob.delete()
+        except gcloud_exceptions.NotFound:
+            # The blob may already have been removed manually; ignore.
+            pass
 
     def _generate_signed_url(self, blob: storage.Blob) -> str:
         return blob.generate_signed_url(
