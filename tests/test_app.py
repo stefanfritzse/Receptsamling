@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 import sys
 import uuid
@@ -69,7 +70,9 @@ class InMemoryRecipeStorage:
         recipe.description = description
         recipe.ingredients = ingredients
         recipe.instructions = instructions
-        if remove_image:
+        if image is not None and getattr(image, "filename", ""):
+            recipe.image_url = f"mock-storage://{image.filename}"
+        elif remove_image:
             recipe.image_url = None
         return recipe
 
@@ -231,6 +234,38 @@ def test_can_remove_recipe_image():
     updated = storage.get_recipe(recipe.id)
     assert updated.image_url is None
     assert "Recipe &#39;Fruit Tart&#39; updated." in response.get_data(as_text=True)
+
+
+def test_updating_recipe_with_file_keeps_image_even_if_remove_flag_set():
+    client, storage = create_test_client()
+    recipe = storage.add_recipe(
+        title="Roasted Veggies",
+        description="Colorful and tasty",
+        ingredients_text="peppers",
+        instructions="Roast until tender.",
+        image=None,
+    )
+
+    recipe.image_url = "https://example.com/veggies.jpg"
+
+    response = client.post(
+        f"/recipes/{recipe.id}",
+        data={
+            "title": "Roasted Veggies Deluxe",
+            "description": "Now with herbs",
+            "ingredients": "peppers\nherbs",
+            "instructions": "Roast until tender and toss with herbs.",
+            "remove_image": "1",
+            "image": (io.BytesIO(b"fake image data"), "veggies.png"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    updated = storage.get_recipe(recipe.id)
+    assert updated.image_url == "mock-storage://veggies.png"
+    assert "Recipe &#39;Roasted Veggies Deluxe&#39; updated." in response.get_data(as_text=True)
 
 
 def test_cannot_update_recipe_without_title():
