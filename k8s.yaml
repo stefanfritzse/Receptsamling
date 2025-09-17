@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: receptsamling-web
+  namespace: app
+  annotations:
+    iam.gke.io/gcp-service-account: gke-receptsamling@simple-web-app-470208.iam.gserviceaccount.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: receptsamling
+  namespace: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: receptsamling }
+  template:
+    metadata:
+      labels: { app: receptsamling }
+    spec:
+      serviceAccountName: receptsamling-web
+      containers:
+      - name: web
+        image: europe-north2-docker.pkg.dev/simple-web-app-470208/recipes-repo/receptsamling:20250917102310
+        ports:
+          - containerPort: 8080
+        envFrom:
+          - configMapRef: { name: receptsamling-config }
+          - secretRef: { name: receptsamling-secrets }
+        readinessProbe:
+          httpGet: { path: "/", port: 8080 }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: { path: "/", port: 8080 }
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: receptsamling
+  namespace: app
+spec:
+  type: LoadBalancer
+  selector: { app: receptsamling }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
