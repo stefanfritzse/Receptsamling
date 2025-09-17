@@ -1,0 +1,66 @@
+name: CI/CD to GKE (keyless)
+
+on:
+  push:
+    branches: [ "main" ]   # after PRs are merged
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC → WIF
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT }}
+  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+  GAR_REPO: ${{ vars.GAR_REPO }}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+  IMAGE_URI: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.GAR_REPO }}/${{ vars.IMAGE_NAME }}
+  GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
+  GKE_LOCATION: ${{ vars.GKE_LOCATION }}
+  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev --quiet
+
+      - name: Set tags
+        id: vars
+        run: echo "SHA_TAG=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Push (SHA + prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_URI }}:${{ steps.vars.outputs.SHA_TAG }}
+            ${{ env.IMAGE_URI }}:prod
+          cache-from: type=registry,ref=${{ env.IMAGE_URI }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_URI }}:buildcache,mode=max
+
+      - id: gke-creds
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_LOCATION }}
+          # use_connect_gateway: 'true'   # ← enable if control plane is private
+
+      - name: Rollout new image
+        run: |
+          kubectl -n "$K8S_NAMESPACE" set image deployment/receptsamling \
+            web="${IMAGE_URI}:${{ steps.vars.outputs.SHA_TAG }}"
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/receptsamling --timeout=180s
