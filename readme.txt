@@ -56,6 +56,9 @@ Local development
    flask --app main run --host=0.0.0.0 --port=8080
    ```
 
+   Containers should instead rely on Gunicorn which is configured in the
+   provided ``Dockerfile``.
+
 Running on Compute Engine
 -------------------------
 1. Provision a VM (e.g., Debian/Ubuntu) with access to the required service
