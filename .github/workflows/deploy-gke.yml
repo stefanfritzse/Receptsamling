@@ -73,14 +73,12 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Get GKE credentials (Connect Gateway)
+      - name: Get GKE credentials (Connect Gateway via Fleet)
         uses: google-github-actions/get-gke-credentials@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
           use_connect_gateway: true
-          # Full resource name; matches what you see in `gcloud container fleet memberships list`
-          fleet_membership: projects/${{ env.PROJECT_ID }}/locations/europe-north2/memberships/receptsamling
-
+          fleet_membership_name: projects/${{ env.PROJECT_ID }}/locations/europe-north2/memberships/receptsamling
 
       - name: Ensure namespace exists
         run: kubectl get ns "$K8S_NAMESPACE" || kubectl create ns "$K8S_NAMESPACE"
