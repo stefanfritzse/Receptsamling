@@ -3,70 +3,89 @@ name: CI/CD to GKE (keyless)
 on:
   push:
     branches: [ "main" ]   # after PRs are merged
+  workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write   # required for OIDC → WIF
 
+concurrency:
+  group: deploy-gke-prod
+  cancel-in-progress: true
+
 env:
-  PROJECT_ID: ${{ vars.GCP_PROJECT }}
-  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
-  GAR_REPO: ${{ vars.GAR_REPO }}
-  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-  IMAGE_URI: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.GAR_REPO }}/${{ vars.IMAGE_NAME }}
-  GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
-  GKE_LOCATION: ${{ vars.GKE_LOCATION }}
-  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+  PROJECT_ID:     ${{ vars.GCP_PROJECT }}
+  GAR_LOCATION:   ${{ vars.GAR_LOCATION }}         # e.g. europe-north2
+  GAR_REPO:       ${{ vars.GAR_REPO }}             # e.g. recipes-repo
+  IMAGE_NAME:     ${{ vars.IMAGE_NAME }}           # e.g. receptsamling
+  IMAGE_URI:      ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.GAR_REPO }}/${{ vars.IMAGE_NAME }}
+  GKE_CLUSTER:    ${{ vars.GKE_CLUSTER }}          # e.g. receptsamling
+  GKE_LOCATION:   ${{ vars.GKE_LOCATION }}         # e.g. europe-north2
+  K8S_NAMESPACE:  ${{ vars.K8S_NAMESPACE }}        # e.g. app
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - id: auth
+      - name: Auth to Google Cloud (WIF)
         uses: google-github-actions/auth@v3
         with:
-          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.GCP_SA_EMAIL }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          export_default_credentials: true
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev --quiet
-
-      - name: Set tags
-        id: vars
-        run: echo "SHA_TAG=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+        run: gcloud auth configure-docker "${{ env.GAR_LOCATION }}-docker.pkg.dev" --quiet
 
       - name: Set up Docker Buildx (BuildKit)
         uses: docker/setup-buildx-action@v3
         with:
           install: true
           driver: docker-container
-    
-      - name: Build & Push (SHA + prod)
+
+      - name: Compute tags
+        id: vars
+        run: |
+          echo "SHA_TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_URI }}:${{ steps.vars.outputs.SHA_TAG }}
-            ${{ env.IMAGE_URI }}:prod
-          cache-from: type=registry,ref=${{ env.IMAGE_URI }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_URI }}:buildcache,mode=max
+            ${{ steps.vars.outputs.IMAGE_URI }}:${{ steps.vars.outputs.SHA_TAG }}
+            ${{ steps.vars.outputs.IMAGE_URI }}:prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - id: gke-creds
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Get GKE credentials (Connect Gateway)
         uses: google-github-actions/get-gke-credentials@v3
         with:
-          cluster_name: ${{ vars.GKE_CLUSTER }}
-          location: ${{ vars.GKE_LOCATION }}
-          project_id: ${{ vars.GCP_PROJECT }}
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_LOCATION }}
+          project_id: ${{ env.PROJECT_ID }}
           use_connect_gateway: true
+
+      - name: Ensure namespace exists
+        run: kubectl get ns "$K8S_NAMESPACE" || kubectl create ns "$K8S_NAMESPACE"
 
       - name: Rollout new image
         run: |
           kubectl -n "$K8S_NAMESPACE" set image deployment/receptsamling \
             web="${IMAGE_URI}:${{ steps.vars.outputs.SHA_TAG }}"
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/receptsamling --timeout=180s
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/receptsamling --timeout=5m
