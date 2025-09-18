@@ -58,12 +58,12 @@ jobs:
           cache-to: type=registry,ref=${{ env.IMAGE_URI }}:buildcache,mode=max
 
       - id: gke-creds
-        uses: google-github-actions/get-gke-credentials@v3
+      - uses: google-github-actions/get-gke-credentials@v3
         with:
-          project_id: ${{ env.PROJECT_ID }}
-          cluster_name: ${{ env.GKE_CLUSTER }}
-          location: ${{ env.GKE_LOCATION }}
-          # use_connect_gateway: 'true'   # ← enable if control plane is private
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GKE_LOCATION }}
+          project_id: ${{ vars.GCP_PROJECT }}
+          use_connect_gateway: true
 
       - name: Rollout new image
         run: |
