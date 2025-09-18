@@ -42,6 +42,8 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           export_default_credentials: true
+          install_components: true
+          components: gke-gcloud-auth-plugin
 
       # ---- BUILD & PUSH IMAGE ----
       - name: Configure Docker for Artifact Registry
