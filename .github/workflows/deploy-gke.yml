@@ -41,6 +41,12 @@ jobs:
         with:
           export_default_credentials: true
 
+      - name: Get creds via Fleet (Connect Gateway)
+        run: |
+          gcloud container fleet memberships get-credentials "${{ vars.GKE_CLUSTER }}" \
+            --project="${{ vars.GCP_PROJECT }}" \
+            --location="${{ vars.GKE_LOCATION }}"     
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${{ env.GAR_LOCATION }}-docker.pkg.dev" --quiet
 
