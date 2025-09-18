@@ -2,7 +2,7 @@ name: CI/CD to GKE (keyless)
 
 on:
   push:
-    branches: [ "main" ]        # after PRs are merged
+    branches: [ "main" ]        # after PRs are merged.
   workflow_dispatch:
 
 permissions:
