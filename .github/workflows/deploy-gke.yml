@@ -20,4 +20,75 @@ env:
   IMAGE_NAME:     ${{ vars.IMAGE_NAME }}          # e.g. receptsamling
   IMAGE_URI:      ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.GAR_REPO }}/${{ vars.IMAGE_NAME }}
   GKE_CLUSTER:    ${{ vars.GKE_CLUSTER }}         # e.g. receptsamling
-  GKE_LOCATION:   ${{ vars.GKE_LOCATION }}        # e.g. europe-nort
+  GKE_LOCATION:   ${{ vars.GKE_LOCATION }}        # e.g. europe-north2
+  K8S_NAMESPACE:  ${{ vars.K8S_NAMESPACE }}       # e.g. app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- AUTH TO GOOGLE (OIDC → WIF) ----
+      - name: Auth to Google Cloud (WIF)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          export_default_credentials: true
+
+      # ---- BUILD & PUSH IMAGE ----
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ env.GAR_LOCATION }}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker Buildx (BuildKit)
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          driver: docker-container
+
+      - name: Compute tags
+        id: vars
+        run: |
+          echo "SHA_TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.IMAGE_URI }}:${{ steps.vars.outputs.SHA_TAG }}
+            ${{ steps.vars.outputs.IMAGE_URI }}:prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      # ---- KUBECONFIG VIA FLEET / CONNECT GATEWAY ----
+      # This avoids the membership auto-discovery that failed in the action.
+      - name: Get creds via Fleet (Connect Gateway)
+        run: |
+          gcloud container fleet memberships get-credentials "${{ env.GKE_CLUSTER }}" \
+            --project="${{ env.PROJECT_ID }}" \
+            --location="${{ env.GKE_LOCATION }}"
+
+      - name: Ensure namespace exists
+        run: kubectl get ns "$K8S_NAMESPACE" || kubectl create ns "$K8S_NAMESPACE"
+
+      - name: Rollout new image
+        run: |
+          kubectl -n "$K8S_NAMESPACE" set image deployment/receptsamling \
+            web="${IMAGE_URI}:${{ steps.vars.outputs.SHA_TAG }}"
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/receptsamling --timeout=5m
