@@ -1,13 +1,17 @@
 :root {
   --bg: #f8fafc;
   --card-bg: #ffffff;
-  --accent: #2563eb;
-  --accent-dark: #1d4ed8;
+  --accent: #22c55e;
+  --accent-dark: #16a34a;
+  --accent-gradient-start: #15803d;
+  --accent-gradient-end: #4ade80;
+  --accent-rgb: 34, 197, 94;
+  --accent-contrast: #166534;
   --danger: #dc2626;
   --danger-dark: #b91c1c;
   --text: #0f172a;
   --muted: #475569;
-  --border: #cbd5f5;
+  --border: #bbf7d0;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -23,10 +27,14 @@ body {
 }
 
 .app-header {
-  background: linear-gradient(135deg, #1d4ed8, #60a5fa);
+  background: linear-gradient(
+    135deg,
+    var(--accent-gradient-start),
+    var(--accent-gradient-end)
+  );
   color: white;
   padding: 3rem 0 2rem;
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.35);
 }
 
 .app-header h1 {
@@ -158,7 +166,7 @@ button.secondary,
 
 button.secondary:hover,
 .button-link.secondary:hover {
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 button.danger {
@@ -244,8 +252,8 @@ button:disabled {
 
 .recipe-list-item.active .recipe-list-link {
   border-color: var(--accent);
-  background: rgba(37, 99, 235, 0.14);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: 0 12px 24px rgba(var(--accent-rgb), 0.18);
 }
 
 .recipe-list-title {
@@ -352,8 +360,8 @@ button:disabled {
 }
 
 .flash-message.success {
-  background: rgba(34, 197, 94, 0.15);
-  color: #166534;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent-contrast);
 }
 
 .flash-message.error {
