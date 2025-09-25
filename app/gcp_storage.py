@@ -242,7 +242,11 @@ class FirestoreRecipeStorage(RecipeRepository):
                 version="v4", method="GET", expiration=SIGNED_URL_EXPIRATION
             )
         except (ValueError, TypeError, AttributeError, auth_exceptions.GoogleAuthError):
-            blob.make_public()
+            # Signed URLs require credentials capable of signing requests. In
+            # development environments that lack such credentials we fall back
+            # to the object's public URL. Buckets that use uniform
+            # bucket-level access cannot use legacy ACLs (``make_public``), so
+            # we simply return the public URL without modifying permissions.
             return blob.public_url
 
 
