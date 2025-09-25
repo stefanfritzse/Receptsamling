@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Iterable, List, Optional
 
 from google.api_core import exceptions as gcloud_exceptions
+from google.auth import exceptions as auth_exceptions
 from google.cloud import firestore, storage
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -94,7 +95,7 @@ class FirestoreRecipeStorage(RecipeRepository):
 
             image.stream.seek(0)
             blob.upload_from_file(image.stream, content_type=image.mimetype)
-            image_url = self._generate_signed_url(blob)
+            image_url = self._get_image_url(blob)
 
         doc = {
             "title": title,
@@ -165,7 +166,7 @@ class FirestoreRecipeStorage(RecipeRepository):
 
             image.stream.seek(0)
             blob.upload_from_file(image.stream, content_type=image.mimetype)
-            new_image_url = self._generate_signed_url(blob)
+            new_image_url = self._get_image_url(blob)
         elif remove_image:
             self._delete_blob_if_exists(current_blob_name)
             new_blob_name = None
@@ -206,7 +207,7 @@ class FirestoreRecipeStorage(RecipeRepository):
 
         if image_blob_name and self._bucket:
             blob = self._bucket.blob(image_blob_name)
-            image_url = self._generate_signed_url(blob)
+            image_url = self._get_image_url(blob)
 
         return Recipe(
             id=doc_id,
@@ -235,10 +236,14 @@ class FirestoreRecipeStorage(RecipeRepository):
             # The blob may already have been removed manually; ignore.
             pass
 
-    def _generate_signed_url(self, blob: storage.Blob) -> str:
-        return blob.generate_signed_url(
-            version="v4", method="GET", expiration=SIGNED_URL_EXPIRATION
-        )
+    def _get_image_url(self, blob: storage.Blob) -> str:
+        try:
+            return blob.generate_signed_url(
+                version="v4", method="GET", expiration=SIGNED_URL_EXPIRATION
+            )
+        except (ValueError, TypeError, AttributeError, auth_exceptions.GoogleAuthError):
+            blob.make_public()
+            return blob.public_url
 
 
 __all__ = ["FirestoreRecipeStorage"]
